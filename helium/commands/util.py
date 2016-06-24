@@ -80,15 +80,21 @@ def tabulate(result, map, **kwargs):
     if not mapping or not result:
         return result
 
-    _writer = kwargs.pop('writer', None)
-    if not _writer:
-        # Ugh, reaching for global state isn't great but very convenient here
-        default_format = 'tty' if sys.stdout.isatty() else 'csv'
-        format = click.get_current_context().params.get('format')
-        # Ensure format is set to something sensible
-        format = format or default_format
-        file = click.utils.get_text_stream('stdout')
-        _writer = writer.for_format(format, file, mapping=mapping)
+    format = kwargs.get('format')
+    _file = kwargs.get('file')
+    # Ugh, reaching for global state isn't great but very convenient here
+    default_format = 'tabular' if sys.stdout.isatty() else 'csv'
+    try:
+        click_format = click.get_current_context().params.get('format')
+    # Sometimes this function will be called as a library function,
+    # rather than being invoked when run on the command line. In this case,
+    # there is no Click current context.
+    except RuntimeError:
+        click_format = None
+    # Ensure format is set to something sensible
+    format = format or click_format or default_format
+    file = _file or click.utils.get_text_stream('stdout')
+    _writer = writer.for_format(format, file, mapping=mapping)
 
     _writer.start()
     _writer.write_entries(result)
@@ -125,9 +131,9 @@ def cli(version=None, package=None,  commands=None):
     def decorator(f):
         @click.option('--uuid', is_flag=True,
                       help="Whether to display long identifiers")
-        @click.option('--format', type=click.Choice(['csv', 'json', 'tty']),
+        @click.option('--format', type=click.Choice(['csv', 'json', 'tabular']),
                       default=None,
-                      help="The output format (default 'tty')")
+                      help="The output format (default 'tabular')")
         @click.version_option(version=version)
         @click.command(cls=Loader, context_settings=CONTEXT_SETTINGS)
         @click.pass_context
